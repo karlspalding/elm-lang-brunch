@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/karlspalding/elm-lang-brunch.svg?branch=master)](https://travis-ci.org/karlspalding/elm-lang-brunch)
+
 elm-lang-brunch
 ===================
 
