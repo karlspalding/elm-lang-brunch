@@ -1,4 +1,5 @@
 [![Build Status](https://travis-ci.org/karlspalding/elm-lang-brunch.svg?branch=master)](https://travis-ci.org/karlspalding/elm-lang-brunch)
+[![NPM Package](https://img.shields.io/npm/v/elm-lang-brunch.svg)](https://www.npmjs.org/package/elm-lang-brunch)
 
 elm-lang-brunch
 ===================
