@@ -22,7 +22,7 @@ describe('ElmLangCompiler', () => {
         expect(plugin.config).to.deep.equal({
             compile: plugin._compile,
             parameters: ['--warn', '--yes'],
-            output: 'elm-stuff/build-artifacts/0.17.1/user/project/1.0.0',
+            output: 'elm-stuff/build-artifacts/0.18.0/user/project/2.0.0',
             'exposed-modules': [],
             'source-directories': []
         });

@@ -49,11 +49,11 @@ class ElmLangCompiler {
         let local = this._parse('elm-package.json', {
             'repository': 'https://github.com/user/project.git',
             'exposed-modules': [],
-            'version': '1.0.0'
+            'version': '2.0.0'
         });
         
         let elm = this._parse(require.resolve('elm/package.json'), {
-            'version': '0.17.1'
+            'version': '0.18.0'
         });
         
         let project = path.parse(url.parse(local.repository).path);

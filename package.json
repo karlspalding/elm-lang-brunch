@@ -1,6 +1,6 @@
 {
   "name": "elm-lang-brunch",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Adds Elm support to Brunch.",
   "author": "Karl Spalding Wall",
   "homepage": "https://github.com/karlspalding/elm-lang-brunch",
@@ -13,7 +13,7 @@
     "test": "node_modules/.bin/eslint index.js test.js && node_modules/.bin/mocha"
   },
   "dependencies": {
-    "elm": "^0.17.0"
+    "elm": "^0.18.0"
   },
   "devDependencies": {
     "chai": "^3.0.0",
