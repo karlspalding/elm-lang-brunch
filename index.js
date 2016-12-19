@@ -1,90 +1,74 @@
 'use strict';
 
 var fs = require('fs');
-var url = require('url');
+var glob = require('glob');
 var path = require('path');
 var child_process = require('child_process');
 var make = require.resolve('elm/binwrappers/elm-make');
 
+
+function promise(fn) {
+    return function () {
+        let parameters = Array.prototype.slice.call(arguments);
+        return new Promise((resolve, reject) => {
+            fn.apply(null, parameters.concat((error, data) => {
+                error === null ? resolve(data) : reject(error);
+            }));
+        });
+    };
+}
+
 class ElmLangCompiler {
-    _parse (filename, fallback) {
-        try {
-            return JSON.parse(fs.readFileSync(filename, 'utf8'));
-        } catch (error) {
-            return fallback;
-        }
+    _glob (path) {
+        return promise(glob)(path + '/**/*.elm');
     }
 
-    _module (file) {
-        return this.config['source-directories'].filter(source => {
-            return file.path.startsWith(source);
-        }).map(source => {
-            return file.path.slice(source.length);
-        }).map(module => {
-            return path.parse(module);
-        }).map(module => {
-            return path.join(module.dir.slice(1), module.name);   
-        })[0];
+    _make (parameters) {
+        return promise(child_process.execFile)(make, parameters);
     }
 
-    _compile (file, module) {
-        let output = path.join(this.config.output, module + '.js');
-        
-        child_process.execFileSync(make, this.config.parameters.concat([
-            '--output', output, file.path
-        ]));
+    _read (path) {
+        return promise(fs.readFile)(path, 'utf8');
+    }
 
-        return fs.readFileSync(output, 'utf8');
+    _target (path) {
+        return Object.keys(this.targets).find(x => this.targets[x](path));
+    }
+
+    _sources (target) {
+        return Promise.all(this.watched.map(this._glob))
+            .then(xs => xs.reduce((a, b) => a.concat(b)))
+            .then(xs => xs.filter(this.targets[target]));
+    }
+
+    _compile (sources, target) {
+        let output = path.join('elm-stuff', 'build-artifacts', target);
+        return this._make(this.parameters.concat('--output', output, sources))
+            .then(() => this._read(output));
     }
 
     constructor (config) {
-        this.config = {
-            compile: this._compile,
-            parameters: ['--warn', '--yes'],
-            output: null,
-            'exposed-modules': [],
-            'source-directories': []
-        };
-        
-        let local = this._parse('elm-package.json', {
-            'repository': 'https://github.com/user/project.git',
-            'exposed-modules': [],
-            'version': '2.0.0'
-        });
-        
-        let elm = this._parse(require.resolve('elm/package.json'), {
-            'version': '0.18.0'
-        });
-        
-        let project = path.parse(url.parse(local.repository).path);
+        this.watched = config.paths.watched;
+        this.targets = config._normalized.join.javascripts['*'];
+        this.parameters = (config.plugins && config.plugins.elm) || ['--warn', '--yes'];
+    }
 
-        this.config.output = [
-            'elm-stuff',
-            'build-artifacts',
-            elm.version,
-            project.dir.slice(1),
-            project.name,
-            local.version 
-        ].join('/');
-
-        this.config['exposed-modules'] = local['exposed-modules'] || [];
-        this.config['source-directories'] = local['source-directories'] || [];
-
-        config = config && config.plugins && config.plugins.elm || {};
-        this.config = Object.assign(this.config, config);
+    getDependencies (file) {
+        let deps = [];
+        deps.patterns = [this.targets[this._target(file.path)]];
+        return Promise.resolve(deps);
     }
 
     compile (file) {
-        let module = this._module(file);
-
-        if (this.config['exposed-modules'].indexOf(module) < 0) {
-            return Promise.resolve(null);
-        } else {
-            file.data = this.config.compile.call(this, file, module);
-            return Promise.resolve(file);
-        }
+        let target = this._target(file.path);
+        return this._sources(target).then(sources => {
+            if (file.path === sources[0]) {
+                return this._compile(sources, target);
+            } else {
+                return Promise.resolve(null);
+            }
+        });
     }
-
 }
 
 ElmLangCompiler.prototype.brunchPlugin = true;

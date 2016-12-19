@@ -6,8 +6,21 @@ const Plugin = require('./');
 describe('ElmLangCompiler', () => {
     let plugin;
 
+    let defaults = {
+        paths: {
+            watched: []
+        },
+        _normalized: {
+            join: {
+                javascripts: {
+                    '*': {}
+                }
+            }
+        }
+    };
+
     beforeEach(() => {
-        plugin = new Plugin({});
+        plugin = new Plugin(defaults);
     });
 
     it('should be an object', () => {
@@ -18,84 +31,76 @@ describe('ElmLangCompiler', () => {
         expect(plugin).to.respondTo('compile');
     });
 
+    it('should have a #getDependencies method', () => {
+        expect(plugin).to.respondTo('getDependencies');
+    });
+
     it('should have a sane default config', () => {
-        expect(plugin.config).to.deep.equal({
-            compile: plugin._compile,
-            parameters: ['--warn', '--yes'],
-            output: 'elm-stuff/build-artifacts/0.18.0/user/project/2.0.0',
-            'exposed-modules': [],
-            'source-directories': []
-        });
+        expect(plugin.watched).to.be.empty;
+        expect(plugin.targets).to.be.empty;
+        expect(plugin.parameters).to.deep.equal(['--warn', '--yes']);
     });
 
     it('should allow overriding config', () => {
-        plugin = new Plugin({
+        plugin = new Plugin(Object.assign({}, defaults, {
             plugins: {
-                elm: {
-                    compile: null,
-                    parameters: [],
-                    output: '',
-                    'exposed-modules': ['Test'],
-                    'source-directories': ['src']
-                }
+                elm: []
             }
+        }));
+
+        expect(plugin.parameters).to.deep.equal([]);
+    });
+
+    describe('#getDependencies()', () => {
+        beforeEach(() => {
+            plugin = new Plugin(Object.assign({}, defaults, {
+                _normalized: {
+                    join: {
+                        javascripts: {
+                            '*': {
+                                'a.js': () => true
+                            }
+                        }
+                    }
+                }
+            }));
         });
-        expect(plugin.config).to.deep.equal({
-            compile: null,
-            parameters: [],
-            output: '',
-            'exposed-modules': ['Test'],
-            'source-directories': ['src']
+
+        it('should return an empty array', () => {
+            return plugin.getDependencies({}).then(x => expect(x).to.be.empty);
+        });
+
+        it('should return the correct dependencies', () => {
+            return plugin.getDependencies({ path: 'a/Example.elm' }).then(x => {
+                expect(x).to.be.empty;
+                expect(x.patterns).to.not.be.empty;
+                expect(x.patterns[0]).to.equal(plugin.targets['a.js']);
+            });
         });
     });
 
     describe('#compile()', () => {
         beforeEach(() => {
-            plugin = new Plugin({
-                plugins: {
-                    elm: {
-                        compile: () => 'COMPILED',
-                        'exposed-modules': ['Compile', 'Also/Valid'],
-                        'source-directories': ['src']
-                    }
-                }
-            });
+            plugin = new Plugin(defaults);
+
+            plugin._parse = () => {
+                return {
+                    repository: 'https://github.com/user/project.git',
+                    version: '1.0.0'
+                };
+            };
         });
 
         it('should not compile all modules', () => {
             return plugin.compile({
-                path: 'src/Other.elm'
-            }).then(x => expect(x).to.be.null);
+                path: 'src/Example.elm'
+            }).then(x => expect(x).to.equal(null));
         });
 
-        it('should compare full module names', () => {
+        it('should compile canonical modules', () => {
             return plugin.compile({
-                path: 'src/NoCompile.elm'
+                path: 'src/Canonical.elm'
             }).then(x => expect(x).to.be.null);
-        });
-
-        it('should consider module source directories', () => {
-            return plugin.compile({
-                path: 'Compile.elm'
-            }).then(x => expect(x).to.be.null);
-        });
-
-        it('should compare full module paths', () => {
-            return plugin.compile({
-                path: 'src/Also/Compile.elm'
-            }).then(x => expect(x).to.be.null);
-        });
-
-        it('should compile specified modules', () => {
-            plugin.compile({
-                path: 'src/Compile.elm'
-            }).then(x => expect(x.data).to.equal('COMPILED'));
-        });
-
-        it('should compile submodules', () => {
-            return plugin.compile({
-                path: 'src/Also/Valid.elm'
-            }).then(x => expect(x.data).to.equal('COMPILED'));
         });
     });
 });
