@@ -21,8 +21,10 @@ describe('ElmLangCompiler', () => {
     it('should have a sane default config', () => {
         expect(plugin.config).to.deep.equal({
             compile: plugin._compile,
+            fallbackCompile: plugin._fallbackCompile,
             parameters: ['--warn', '--yes'],
             output: 'elm-stuff/build-artifacts/0.18.0/user/project/2.0.0',
+            renderErrors: false,
             'exposed-modules': [],
             'source-directories': []
         });
@@ -33,8 +35,10 @@ describe('ElmLangCompiler', () => {
             plugins: {
                 elm: {
                     compile: null,
+                    fallbackCompile: null,
                     parameters: [],
                     output: '',
+                    renderErrors: true,
                     'exposed-modules': ['Test'],
                     'source-directories': ['src']
                 }
@@ -42,8 +46,10 @@ describe('ElmLangCompiler', () => {
         });
         expect(plugin.config).to.deep.equal({
             compile: null,
+            fallbackCompile: null,
             parameters: [],
             output: '',
+            renderErrors: true,
             'exposed-modules': ['Test'],
             'source-directories': ['src']
         });
@@ -55,6 +61,7 @@ describe('ElmLangCompiler', () => {
                 plugins: {
                     elm: {
                         compile: () => 'COMPILED',
+                        fallbackCompile: () => 'ERRORS',
                         'exposed-modules': ['Compile', 'Also/Valid'],
                         'source-directories': ['src']
                     }
@@ -96,6 +103,21 @@ describe('ElmLangCompiler', () => {
             return plugin.compile({
                 path: 'src/Also/Valid.elm'
             }).then(x => expect(x.data).to.equal('COMPILED'));
+        });
+
+        it('should not fallback by default', () => {
+            plugin.config.compile = () => {throw {stderr: 'failure'};};
+            return plugin.compile({
+                path: 'src/Compile.elm'
+            }).catch(x => expect(x.stderr).to.equal('failure'));
+        });
+
+        it('should fallback when configured to', () => {
+            plugin.config.renderErrors = true;
+            plugin.config.compile = () => {throw {stderr: 'failure'};};
+            return plugin.compile({
+                path: 'src/Compile.elm'
+            }).then(x => expect(x.data).to.equal('ERRORS'));
         });
     });
 });
