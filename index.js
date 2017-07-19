@@ -3,6 +3,7 @@
 var fs = require('fs');
 var url = require('url');
 var path = require('path');
+var glob = require('glob');
 var child_process = require('child_process');
 var make = require.resolve('elm/binwrappers/elm-make');
 var errorFile = require.resolve('./Errors.elm');
@@ -91,6 +92,19 @@ class ElmLangCompiler {
 
         config = config && config.plugins && config.plugins.elm || {};
         this.config = Object.assign(this.config, config);
+    }
+
+    getDependencies (file) {
+        let module = this._module(file);
+        if(this.config['exposed-modules'].indexOf(module) < 0) {
+            return Promise.resolve([]);
+        } else {
+            let deps = this.config['source-directories']
+                .reduce((acc, dir) => {
+                    return acc.concat(glob.sync(`${dir}/**/*.elm`));
+                }, []);
+            return Promise.resolve(deps);
+        }
     }
 
     compile (file) {
