@@ -3,8 +3,10 @@
 var fs = require('fs');
 var url = require('url');
 var path = require('path');
+var glob = require('glob');
 var child_process = require('child_process');
 var make = require.resolve('elm/binwrappers/elm-make');
+var errorFile = require.resolve('./Errors.elm');
 
 class ElmLangCompiler {
     _parse (filename, fallback) {
@@ -29,7 +31,7 @@ class ElmLangCompiler {
 
     _compile (file, module) {
         let output = path.join(this.config.output, module + '.js');
-        
+
         child_process.execFileSync(make, this.config.parameters.concat([
             '--output', output, file.path
         ]));
@@ -37,11 +39,29 @@ class ElmLangCompiler {
         return fs.readFileSync(output, 'utf8');
     }
 
+    _fallbackCompile(error, module) {
+        let output = path.join(this.config.output, module + '.js');
+
+        let errorText = error.stderr.toString();
+        let escaped = errorText.replace(/`/g, '\\`');
+        let displayError = `
+            document.body.style.backgroundColor = "#000";
+            module.exports.Errors.fullscreen(\`${escaped}\`);`;
+            
+        child_process.execFileSync(make, this.config.parameters.concat([
+            '--output', output, errorFile
+        ]));
+
+        return fs.readFileSync(output, 'utf8') + displayError;
+    }
+
     constructor (config) {
         this.config = {
             compile: this._compile,
+            fallbackCompile: this._fallbackCompile,
             parameters: ['--warn', '--yes'],
             output: null,
+            renderErrors: false,
             'exposed-modules': [],
             'source-directories': []
         };
@@ -74,13 +94,34 @@ class ElmLangCompiler {
         this.config = Object.assign(this.config, config);
     }
 
+    getDependencies (file) {
+        let module = this._module(file);
+        if(this.config['exposed-modules'].indexOf(module) < 0) {
+            return Promise.resolve([]);
+        } else {
+            let deps = this.config['source-directories']
+                .reduce((acc, dir) => {
+                    return acc.concat(glob.sync(`${dir}/**/*.elm`));
+                }, []);
+            return Promise.resolve(deps);
+        }
+    }
+
     compile (file) {
         let module = this._module(file);
 
         if (this.config['exposed-modules'].indexOf(module) < 0) {
             return Promise.resolve(null);
         } else {
-            file.data = this.config.compile.call(this, file, module);
+            try {
+                file.data = this.config.compile.call(this, file, module);
+            } catch (err) {
+                if (this.config.renderErrors) {
+                    file.data = this.config.fallbackCompile.call(this, err, module);
+                } else {
+                    return Promise.reject(err);
+                }
+            }
             return Promise.resolve(file);
         }
     }
